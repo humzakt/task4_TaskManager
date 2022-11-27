@@ -2,7 +2,7 @@ const express = require("express");
 const app = express();
 const mongoose = require("./db/mongoose");
 const bodyParser = require("body-parser");
-const { List, Task } = require("./db/models");
+const { List, Task, User } = require("./db/models");
 
 //load middleware
 
@@ -170,4 +170,64 @@ app.delete("/lists/:listId/tasks/:taskId", (req, res) => {
 
 app.listen(3000, () => {
   console.log("Task Manager listening on port 3000!");
+});
+
+//User routes
+
+/**
+ * Post /users
+ * Purpose : Sign up
+ */
+
+app.post("/users", (req, res) => {
+  let body = req.body;
+  let newUser = new User(body);
+
+  newUser
+    .save()
+    .then(() => {
+      return newUser.createSession();
+    })
+    .then((refreshToken) => {
+      //Session created successfully - refreshToken returned
+      //now we generate an access auth token for the user
+
+      return newUser.generateAccessAuthToken().then((accessToken) => {
+        //access auth token generated successfully, now we return an object containing the auth tokens
+        return { accessToken, refreshToken };
+      });
+    })
+    .then((authTokens) => {
+      //now we construct and send the response to the user with their auth tokens in the header and the user object in the body
+
+      res
+        .header("x-refresh-token", authTokens.refreshToken)
+        .header("x-access-token", authTokens.accessToken)
+        .send(newUser);
+    })
+    .catch((e) => {
+      res.status(400).send(e);
+    });
+});
+
+/**
+ * Post /users/login
+ * Purpose : login
+ */
+
+app.post("/users/login", (req, res) => {
+  let email = req.body.email;
+  let password = req.body.password;
+
+  User.findByCredentials(email, password).then((user) => {
+    return user.createSession().then((refreshToken) => {
+      //Session created successfully - refreshToken returned
+      //now we generate an access auth token for the user
+
+      return user.generateAccessAuthToken().then((accessToken) => {
+        //access auth token generated successfully, now we return an object containing the auth tokens
+        return { accessToken, refreshToken };
+      });
+    });
+  });
 });
