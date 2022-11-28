@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 const _ = require("lodash");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
-
+const crypto = require("crypto");
 //jwt key
 
 const jwtSecret = "Walee_HumzaKhawar_tassk_proMAx";
@@ -76,10 +76,6 @@ UserSchema.methods.generateRefreshAuthToken = function () {
 
         return resolve(token);
       }
-
-      //   else{
-      //     reject();
-      //   }
     });
   });
 };
@@ -109,7 +105,7 @@ UserSchema.statics.findbyIdAndToken = function (_id, token) {
 
   return User.findOne({
     _id,
-    "session.token": token,
+    "sessions.token": token,
   });
 };
 

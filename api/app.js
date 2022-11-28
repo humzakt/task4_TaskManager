@@ -8,6 +8,55 @@ const { List, Task, User } = require("./db/models");
 
 app.use(bodyParser.json());
 
+//verify refresh token middleware (which will be added to the private routes)
+let verifySession = (req, res, next) => {
+  //grab the refresh token from the users cookies
+  let refreshToken = req.header("x-refresh-token");
+  let _id = req.header("_id");
+
+  // console.log(req.headers);
+
+  // console.log("refreshToken", refreshToken);
+  // console.log("_id", _id);
+
+  User.findbyIdAndToken(_id, refreshToken)
+    .then((user) => {
+      if (!user) {
+        //if no user is found
+        return Promise.reject({
+          error:
+            "User not found. Make sure that the refresh token and user id are correct",
+        });
+      }
+
+      console.log("user", user);
+      let isSessionValid = false;
+
+      user.sessions.forEach((session) => {
+        if (session.token === refreshToken) {
+          //check if the session has expired
+          if (User.hasRefreshTokenExpired(session.expiresAt) === false) {
+            //refresh token has not expired
+            isSessionValid = true;
+          }
+        }
+      });
+
+      if (isSessionValid) {
+        //the session is valid, call next() to continue with processing this web request
+        req.user_id = user._id;
+        req.userObject = user;
+        req.refreshToken = refreshToken;
+
+        next();
+      }
+    })
+    .catch((e) => {
+      console.log(e);
+      res.status(401).send(e);
+    });
+};
+
 //CORS HEADERS MIDDLEWARE
 
 app.use(function (req, res, next) {
@@ -168,10 +217,6 @@ app.delete("/lists/:listId/tasks/:taskId", (req, res) => {
   });
 });
 
-app.listen(3000, () => {
-  console.log("Task Manager listening on port 3000!");
-});
-
 //User routes
 
 /**
@@ -224,10 +269,49 @@ app.post("/users/login", (req, res) => {
       //Session created successfully - refreshToken returned
       //now we generate an access auth token for the user
 
-      return user.generateAccessAuthToken().then((accessToken) => {
-        //access auth token generated successfully, now we return an object containing the auth tokens
-        return { accessToken, refreshToken };
-      });
+      return user
+        .generateAccessAuthToken()
+        .then((accessToken) => {
+          //access auth token generated successfully, now we return an object containing the auth tokens
+          return { accessToken, refreshToken };
+        })
+        .then((authTokens) => {
+          //now we construct and send the response to the user with their auth tokens in the header and the user object in the body
+
+          res
+            .header("x-refresh-token", authTokens.refreshToken)
+            .header("x-access-token", authTokens.accessToken)
+            .send(user);
+        })
+        .catch((e) => {
+          res
+            .status(400)
+            .send({ message: "Unable to generate access token\n", e });
+        });
     });
   });
+});
+
+/*
+ *  GET /users/me/access-token
+ *  Purpose: generates and returns an access token
+ */
+
+app.get("/users/me/access-token", verifySession, (req, res) => {
+  //we know that the user is authenticated and we have the user_id and user object available to us
+
+  req.userObject
+    .generateAccessAuthToken()
+    .then((accessToken) => {
+      console.log("Access token generated successfully");
+      res.body = accessToken;
+      res.header("x-access-token", accessToken).send({ accessToken });
+    })
+    .catch((e) => {
+      res.status(400).send(e);
+    });
+});
+
+app.listen(3000, () => {
+  console.log("Task Manager listening on port 3000!");
 });
