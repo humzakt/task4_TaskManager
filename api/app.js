@@ -4,6 +4,7 @@ const mongoose = require("./db/mongoose");
 const bodyParser = require("body-parser");
 const { List, Task, User } = require("./db/models");
 const jwt = require("jsonwebtoken");
+const cors = require("cors");
 //load middleware
 
 app.use(bodyParser.json());
@@ -42,10 +43,10 @@ let verifySession = (req, res, next) => {
         return Promise.reject({
           error:
             "User not found. Make sure that the refresh token and user id are correct",
-        });
+        }).sendStatus(401);
       }
 
-      console.log("user", user);
+      // console.log("user", user);
       let isSessionValid = false;
 
       user.sessions.forEach((session) => {
@@ -75,23 +76,12 @@ let verifySession = (req, res, next) => {
 
 //CORS HEADERS MIDDLEWARE
 
-app.use(function (req, res, next) {
-  res.header("Access-Control-Allow-Origin", "http://localhost:4200"); // update to match the domain you will make the request from
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept"
-  );
-  res.header(
-    "Access-Control-Allow-Methods",
-    "GET, POST, PATCH, PUT, DELETE, OPTIONS"
-  );
-  res.header(
-    "Access-Control-Expose-Headers",
-    "x-access-token, x-refresh-token"
-  );
-
-  next();
-});
+app.use(
+  cors({
+    credentials: true,
+    exposedHeaders: ["x-access-token", "x-refresh-token", "_id"],
+  })
+);
 
 /**
  * Route Handlers
@@ -116,6 +106,7 @@ app.get("/lists", authenticate, (req, res) => {
       res.send(lists);
     })
     .catch((e) => {
+      console.log("error in app get lists", e);
       res.send(e);
     });
 });
@@ -402,32 +393,37 @@ app.post("/users/login", (req, res) => {
   let email = req.body.email;
   let password = req.body.password;
 
-  User.findByCredentials(email, password).then((user) => {
-    return user.createSession().then((refreshToken) => {
-      //Session created successfully - refreshToken returned
-      //now we generate an access auth token for the user
+  User.findByCredentials(email, password)
+    .then((user) => {
+      return user.createSession().then((refreshToken) => {
+        //Session created successfully - refreshToken returned
+        //now we generate an access auth token for the user
 
-      return user
-        .generateAccessAuthToken()
-        .then((accessToken) => {
-          //access auth token generated successfully, now we return an object containing the auth tokens
-          return { accessToken, refreshToken };
-        })
-        .then((authTokens) => {
-          //now we construct and send the response to the user with their auth tokens in the header and the user object in the body
+        return user
+          .generateAccessAuthToken()
+          .then((accessToken) => {
+            //access auth token generated successfully, now we return an object containing the auth tokens
+            return { accessToken, refreshToken };
+          })
+          .then((authTokens) => {
+            //now we construct and send the response to the user with their auth tokens in the header and the user object in the body
 
-          res
-            .header("x-refresh-token", authTokens.refreshToken)
-            .header("x-access-token", authTokens.accessToken)
-            .send(user);
-        })
-        .catch((e) => {
-          res
-            .status(400)
-            .send({ message: "Unable to generate access token\n", e });
-        });
+            res
+              .header("x-refresh-token", authTokens.refreshToken)
+              .header("x-access-token", authTokens.accessToken)
+              .send(user);
+            // console.log(res);
+          })
+          .catch((e) => {
+            res
+              .status(400)
+              .send({ message: "Unable to generate access token\n", e });
+          });
+      });
+    })
+    .catch((e) => {
+      res.status(401).send({ message: "Unable to login\n", e });
     });
-  });
 });
 
 /*
