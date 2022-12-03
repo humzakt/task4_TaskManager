@@ -43,7 +43,7 @@ let verifySession = (req, res, next) => {
         return Promise.reject({
           error:
             "User not found. Make sure that the refresh token and user id are correct",
-        }).sendStatus(401);
+        });
       }
 
       // console.log("user", user);
@@ -355,7 +355,11 @@ app.delete("/lists/:listId/tasks/:taskId", authenticate, (req, res) => {
 
 app.post("/users", (req, res) => {
   let body = req.body;
-  let newUser = new User(body);
+  let newUser = new User({
+    email: body.email,
+    password: body.password,
+    isOwner: true,
+  });
 
   newUser
     .save()
@@ -411,6 +415,7 @@ app.post("/users/login", (req, res) => {
             res
               .header("x-refresh-token", authTokens.refreshToken)
               .header("x-access-token", authTokens.accessToken)
+              // .header("isOwner", user.isOwner)
               .send(user);
             // console.log(res);
           })
@@ -446,7 +451,224 @@ app.get("/users/me/access-token", verifySession, (req, res) => {
     });
 });
 
+//Method to create sub users in a team
+
+app.post("/users/create-sub-user", authenticate, (req, res) => {
+  let body = req.body;
+  let email = body.email;
+  let password = body.password;
+
+  let user = new User({
+    email,
+    password,
+    isOwner: false,
+    _ownerId: req.user_id,
+  });
+
+  User.create(user)
+    .then(() => {
+      res.send(user);
+    })
+    .catch((e) => {
+      res.status(400).send(e);
+    });
+});
+
+//Get list of sub users
+app.get("/users/sub-users", authenticate, (req, res) => {
+  User.find({
+    _ownerId: req.user_id,
+  })
+    .then((subUsers) => {
+      res.send(subUsers);
+    })
+    .catch((e) => {
+      res.send(e);
+    });
+});
+
+//delete sub user
+app.delete("/users/sub-users/:userId", authenticate, (req, res) => {
+  User.findOneAndDelete({
+    _id: req.params.userId,
+    _ownerId: req.user_id,
+  })
+    .then((subUser) => {
+      deleteTasksFromSubUser(subUser._id);
+      res.send(subUser);
+    })
+    .catch((e) => {
+      res.send(e);
+    });
+});
+
+//*****************************************************************************/
+//*****************************************************************************/
+//***********************  Tasks in SubUser  **********************************/
+//*****************************************************************************/
+//*****************************************************************************/
+
+/**
+ * Get /user/:userId/tasks
+ * Purpose: Send all tasks in a specified sub user
+ */
+
+app.get("/users/:userId/tasks", authenticate, (req, res) => {
+  //return all tasks that belong to a specific user
+  Task.find({
+    _userId: req.params.userId,
+  })
+    .then((tasks) => {
+      res.send(tasks);
+    })
+    .catch((e) => {
+      res.send(e);
+    });
+});
+
+/**
+ * Post /users/:userId/tasks
+ * Purpose: create task in a specified sub user
+ */
+
+app.post("/users/:userId/tasks", authenticate, (req, res) => {
+  User.findOne({
+    _id: req.params.userId,
+    // _userId: req.user_id,
+  })
+    .then((user) => {
+      // if user exists
+      //
+
+      if (user) {
+        //user is found
+        return true;
+      } else {
+        return false;
+      }
+    })
+    .then((canCreateTask) => {
+      // console.log("canCreateTask", canCreateTask);
+      if (canCreateTask) {
+        //create a new task in a user specified by userId
+        let newTask = new Task({
+          title: req.body.title,
+          _userId: req.params.userId,
+        });
+        newTask.save().then((newTaskDoc) => {
+          res.send(newTaskDoc);
+        });
+      } else {
+        res.sendStatus(404);
+      }
+    });
+});
+
+/**
+ * Patch "/users/:userId/tasks/:taskId"
+ * Purpose: Update task in a specified user
+ */
+
+app.patch("/users/:userId/tasks/:taskId", authenticate, (req, res) => {
+  User.findOne({
+    _id: req.params.userId,
+    // _userId: req.user_id,
+  })
+    .then((user) => {
+      // if user exists
+      //
+
+      if (user) {
+        //user is found
+        return true;
+      } else {
+        return false;
+      }
+    })
+    .then((canEditTask) => {
+      // console.log("canCreateTask", canCreateTask);
+      if (canEditTask) {
+        //edit a task in a user specified by userId
+
+        Task.findOneAndUpdate(
+          {
+            _id: req.params.taskId,
+            _userId: req.params.userId,
+          },
+          {
+            $set: req.body,
+          }
+        ).then(() => {
+          res.send({ message: "Updated successfully" });
+        });
+      } else {
+        res.sendStatus(404);
+      }
+    })
+    .catch((e) => {
+      res.send(e);
+    });
+});
+
+/**
+ * Delete "/users/:userId/tasks/:taskId"
+ * Purpose: Delete task in a specified user
+ */
+
+app.delete("/users/:userId/tasks/:taskId", authenticate, (req, res) => {
+  User.findOne({
+    _id: req.params.userId,
+    // _userId: req.user_id,
+  })
+    .then((user) => {
+      // if user exists
+      //
+
+      if (user) {
+        //user is found
+        return true;
+      } else {
+        return false;
+      }
+    })
+    .then((canDeleteTask) => {
+      // console.log("canCreateTask", canCreateTask);
+      if (canDeleteTask) {
+        //edit a task in a user specified by userId
+
+        Task.findOneAndDelete(
+          {
+            _id: req.params.taskId,
+            _userId: req.params.userId,
+          },
+          {
+            $set: req.body,
+          }
+        ).then((task) => {
+          res.send(task);
+        });
+      } else {
+        res.sendStatus(404);
+      }
+    })
+    .catch((e) => {
+      res.send(e);
+    });
+});
+
+//*****************************************************************************/
+//*************************    END    *****************************************/
+//*****************************************************************************/
+
 //Helper methods
+
+let deleteTasksFromSubUser = (_userId) => {
+  Task.deleteMany({
+    _userId,
+  }).then(() => {
+    console.log("Tasks from " + _userId._id + " were deleted!");
+  });
+};
 
 let deleteTasksFromList = (_listId) => {
   Task.deleteMany({

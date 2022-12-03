@@ -8,6 +8,13 @@ const crypto = require("crypto");
 const jwtSecret = "Walee_HumzaKhawar_tassk_proMAx";
 
 const UserSchema = new mongoose.Schema({
+  // name: {
+  //   type: String,
+  //   // required:true
+  //   minlength: 3,
+  //   trim: true,
+  // },
+
   email: {
     type: String,
     required: true,
@@ -19,6 +26,15 @@ const UserSchema = new mongoose.Schema({
     type: String,
     required: true,
     minlength: 8,
+  },
+  isOwner: {
+    type: Boolean,
+    required: false,
+    // default: true,
+  },
+  _ownerId: {
+    type: mongoose.Schema.Types.ObjectId,
+    required: false,
   },
   sessions: [
     {
@@ -52,7 +68,7 @@ UserSchema.methods.generateAccessAuthToken = function () {
     jwt.sign(
       { _id: user._id.toHexString() },
       jwtSecret,
-      { expiresIn: "15m" },
+      { expiresIn: "100m" },
       (err, token) => {
         if (!err) {
           resolve(token);
