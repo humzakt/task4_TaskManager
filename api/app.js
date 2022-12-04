@@ -465,7 +465,13 @@ app.post("/users/create-sub-user", authenticate, (req, res) => {
     _ownerId: req.user_id,
   });
 
-  User.create(user)
+  // newUser
+  //   .save()
+  //   .then(() => {
+  //     return newUser.createSession();
+  //   })
+  user
+    .save()
     .then(() => {
       res.send(user);
     })
