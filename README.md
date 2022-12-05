@@ -32,8 +32,9 @@ The team members can login and view their tasks.
 
 ### Backend
 
-- Run the backend wih npm start and make sure it is connected at port 3000
+- Install required packages with `npm install`
+- Run the backend wih `nodemon start` and make sure it is connected at port 3000
 
 ### Frontend
 
-- Run frontend by running ng serve 
+- Run frontend by running `ng serve` 
