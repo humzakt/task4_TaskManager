@@ -1,4 +1,4 @@
-# task4_TaskManager
+# Task Manager for teams built with Mean Stack
 
 This project was built on top of tutorial by [DevStackr](https://www.youtube.com/watch?v=V-CeWkz1MNQ&list=PLIjdNHWULhPSZFDzQU6AnbVQNNo1NTRpd)
 
